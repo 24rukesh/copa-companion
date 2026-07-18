@@ -71,6 +71,17 @@ Tests:
 pytest -q
 ```
 
+## Deploy (Docker / Coolify)
+
+A `Dockerfile` ships in the repo root. Coolify: add the repo as a
+Dockerfile-build application, set port **8000**, and add `GEMINI_API_KEY` as a
+runtime environment variable (never bake it into the image). Plain Docker:
+
+```bash
+docker build -t copa-companion .
+docker run -p 8000:8000 -e GEMINI_API_KEY=... copa-companion
+```
+
 ## Security
 
 - Gemini is called **server-side only**; the key never reaches the browser and
