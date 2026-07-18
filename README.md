@@ -20,11 +20,17 @@ gate is nearly empty.
    the app maps the section to its level and assigned gate.
 2. **Live gate queues** — a per-gate wait-time feed (simulated; see
    Assumptions), shown as an always-visible bar and fed into every answer.
-3. **Multilingual AI concierge** — a chat grounded on a stadium knowledge pack
+3. **Where you are (maps)** — one tap shares your position *with your browser
+   only*: the app shows a Leaflet/OpenStreetMap map with your location, the
+   route to the stadium (real driving route + ETA via the public OSRM router,
+   haversine estimate as fallback), distance, and the nearest gate with its
+   current queue. Only the distance/ETA numbers are sent to the assistant —
+   raw coordinates never leave the browser.
+4. **Multilingual AI concierge** — a chat grounded on a stadium knowledge pack
    (gates, food, transit, bag policy, accessibility, first aid…). Ask in any
    language; Gemini answers in that language, using only the facts and live
    queue data — and reroutes you to a faster gate when yours is congested.
-4. **Organizer ops summary** — the same crowd data summarized for staff:
+5. **Organizer ops summary** — the same crowd data summarized for staff:
    which gates are above threshold and where to redirect arrivals.
 
 ## Approach and logic
@@ -109,5 +115,10 @@ docker run -p 8000:8000 -e GEMINI_API_KEY=... copa-companion
   makes rerouting to a faster gate valid advice.
 - Ticket input is pasted text rather than barcode/OCR scanning — out of scope
   for the prototype.
+- Maps use OpenStreetMap tiles and the public OSRM demo router (no API key,
+  rate-limited; fine for a demo). Production would use a paid routing API.
+  Gate GPS coordinates are approximate points on the stadium perimeter.
+- Leaflet and the Archivo font load from CDNs; without internet the app still
+  works, minus the map and custom font.
 
 Not affiliated with FIFA. Demo project.

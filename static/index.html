@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=Archivo+Black&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   :root {
     --bg: #0a1420; --bg2: #0e1c2e; --panel: rgba(255, 255, 255, .045);
@@ -112,6 +114,16 @@
   #log li.user { background: linear-gradient(135deg, #1d3a5f, #16304f); margin-left: auto; border-bottom-right-radius: 4px; }
   #log li.bot { background: var(--field); border: 1px solid var(--panel-border); border-bottom-left-radius: 4px; }
 
+  #map { height: 280px; border-radius: 12px; margin-top: .8rem; display: none; border: 1px solid var(--panel-border); }
+  #map.on { display: block; }
+  .leaflet-container { background: #0e1c2e; }
+  #geo-summary {
+    display: none; margin-top: .8rem; padding: .7rem .9rem; border-radius: 12px;
+    background: rgba(52, 217, 123, .1); border: 1px solid rgba(52, 217, 123, .3);
+    font-size: .9rem;
+  }
+  #geo-summary.on { display: block; }
+  .geo-note { font-size: .75rem; color: #64788d; margin: .6rem 0 0; }
   #ticket-result, #ops-summary { font-size: .88rem; color: var(--muted); margin: .6rem 0 0; min-height: 1.2em; }
   #ticket-result:not(:empty) {
     color: var(--text); background: rgba(52, 217, 123, .1);
@@ -149,13 +161,26 @@
     <p id="ticket-result" role="status"></p>
   </section>
 
+  <section aria-labelledby="geo-h">
+    <h2 id="geo-h"><span class="step" aria-hidden="true">2</span>Where you are</h2>
+    <button id="geo-btn" type="button">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true" style="vertical-align:-2px;margin-right:.35rem">
+        <path d="M12 21s-7-6.1-7-11a7 7 0 1 1 14 0c0 4.9-7 11-7 11Z"/><circle cx="12" cy="10" r="2.6"/>
+      </svg>Use my location
+    </button>
+    <p id="geo-status" role="status" class="geo-note"></p>
+    <div id="geo-summary" role="status" aria-live="polite"></div>
+    <div id="map" aria-label="Map showing your position, the route and the stadium gates"></div>
+    <p class="geo-note">Your position stays on your device — only the distance number is shared with the assistant. Route via OpenStreetMap/OSRM.</p>
+  </section>
+
   <section aria-labelledby="crowd-h">
-    <h2 id="crowd-h"><span class="step" aria-hidden="true">2</span>Live gate queues</h2>
+    <h2 id="crowd-h"><span class="step" aria-hidden="true">3</span>Live gate queues</h2>
     <div id="gates" role="list" aria-label="Gate wait times"></div>
   </section>
 
   <section aria-labelledby="chat-h">
-    <h2 id="chat-h"><span class="step" aria-hidden="true">3</span>Ask anything</h2>
+    <h2 id="chat-h"><span class="step" aria-hidden="true">4</span>Ask anything</h2>
     <div class="quick" role="group" aria-label="Quick questions">
       <button type="button" data-q="Where is my gate?">Where is my gate?</button>
       <button type="button" data-q="¿Dónde hay comida halal?">¿Dónde hay comida halal?</button>
@@ -182,6 +207,9 @@
 
 <script>
   let section = null;
+  let venue = null;        // stadium coords from /api/crowd
+  let lastGates = [];      // last snapshot incl. coords + waits
+  let travel = null;       // {distance_km, eta_min} shared with the assistant
   const $ = (id) => document.getElementById(id);
 
   async function api(path, body) {
@@ -204,7 +232,10 @@
 
   async function refreshGates() {
     try {
-      const { gates } = await api("/api/crowd");
+      const data = await api("/api/crowd");
+      venue = data.venue;
+      lastGates = data.gates;
+      const gates = data.gates;
       const max = Math.max(...gates.map((g) => g.wait_min), 40);
       $("gates").replaceChildren(...gates.map((g) => {
         const div = document.createElement("div");
@@ -239,7 +270,7 @@
     $("msg").value = "";
     addMsg(message, "user");
     try {
-      const { reply } = await api("/api/chat", { message, section });
+      const { reply } = await api("/api/chat", { message, section, ...(travel || {}) });
       addMsg(reply, "bot");
     } catch (e) {
       addMsg("Something went wrong: " + e.message, "bot");
@@ -252,6 +283,79 @@
       $("chat-form").requestSubmit();
     })
   );
+
+  // ---- Where you are: geolocation + distance/ETA + map ----
+  const havKm = (a, b) => {
+    const r = Math.PI / 180, R = 6371;
+    const dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r;
+    const s = Math.sin(dLat / 2) ** 2 +
+      Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(s));
+  };
+
+  async function osrmRoute(me) {
+    // public demo router: real driving route + duration; fails → estimate
+    const url = `https://router.project-osrm.org/route/v1/driving/` +
+      `${me.lng},${me.lat};${venue.lng},${venue.lat}?overview=full&geometries=geojson`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    const data = await res.json();
+    const r = data.routes[0];
+    return { km: r.distance / 1000, min: r.duration / 60, line: r.geometry.coordinates };
+  }
+
+  function showMap(me, routeLine) {
+    const el = $("map");
+    el.classList.add("on");
+    const map = L.map(el).setView([me.lat, me.lng], 13);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap contributors",
+    }).addTo(map);
+    const you = L.circleMarker([me.lat, me.lng], {
+      radius: 9, color: "#34d97b", fillColor: "#34d97b", fillOpacity: 0.9,
+    }).addTo(map).bindPopup("You are here");
+    lastGates.forEach((g) =>
+      L.marker([g.lat, g.lng]).addTo(map)
+        .bindPopup(`Gate ${g.gate} — ${g.wait_min} min queue<br>${g.location}`)
+    );
+    if (routeLine) {
+      L.polyline(routeLine.map(([lng, lat]) => [lat, lng]), {
+        color: "#34d97b", weight: 4, opacity: 0.8,
+      }).addTo(map);
+    }
+    map.fitBounds(L.featureGroup([you, ...lastGates.map((g) => L.marker([g.lat, g.lng]))]).getBounds().pad(0.2));
+  }
+
+  $("geo-btn").addEventListener("click", () => {
+    if (!navigator.geolocation) { $("geo-status").textContent = "Geolocation is not supported by this browser."; return; }
+    if (!venue) { $("geo-status").textContent = "Still loading stadium data, try again in a second."; return; }
+    $("geo-status").textContent = "Locating…";
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const me = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      let km, min, line = null, how = "driving";
+      try {
+        ({ km, min, line } = await osrmRoute(me));
+      } catch {
+        km = havKm(me, venue) * 1.3; // road factor over straight line
+        min = (km / 40) * 60;        // ~40 km/h urban driving estimate
+      }
+      if (km < 2.5) { how = "walking"; min = (km / 4.8) * 60; }
+      const nearest = lastGates.reduce((a, b) => (havKm(me, a) < havKm(me, b) ? a : b));
+      travel = { distance_km: Math.round(km * 10) / 10, eta_min: Math.round(min) };
+      $("geo-status").textContent = "";
+      const s = $("geo-summary");
+      s.classList.add("on");
+      s.textContent =
+        `You are ${travel.distance_km} km from the stadium — about ${travel.eta_min} min ${how}. ` +
+        `Nearest gate on arrival: Gate ${nearest.gate} (${nearest.wait_min} min queue). ` +
+        `The assistant now knows how far away you are.`;
+      showMap(me, line);
+    }, (err) => {
+      $("geo-status").textContent =
+        err.code === err.PERMISSION_DENIED
+          ? "Location permission denied — allow it in your browser to use this."
+          : "Could not get your location. Try again.";
+    }, { enableHighAccuracy: true, timeout: 10000 });
+  });
 
   $("ops-btn").addEventListener("click", async () => {
     const data = await api("/api/ops");

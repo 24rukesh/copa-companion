@@ -48,6 +48,22 @@ def test_chat_rejects_oversized_input():
     assert res.status_code == 422
 
 
+def test_crowd_includes_coords():
+    res = client.get("/api/crowd")
+    data = res.json()
+    assert {"lat", "lng"} <= set(data["venue"])
+    assert all({"lat", "lng"} <= set(g) for g in data["gates"])
+
+
+def test_chat_uses_travel_context(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    res = client.post(
+        "/api/chat",
+        json={"message": "where is my gate", "section": 428, "distance_km": 3.2, "eta_min": 12},
+    )
+    assert "3.2 km" in res.json()["reply"]
+
+
 def test_ops_summary():
     res = client.get("/api/ops")
     assert res.status_code == 200

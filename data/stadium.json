@@ -1,12 +1,13 @@
 {
   "venue": "AT&T Stadium, Arlington (Dallas), Texas",
   "event": "FIFA World Cup 2026 — Group Stage",
+  "coords": { "lat": 32.7473, "lng": -97.0945 },
   "gates": [
-    { "id": "A", "location": "north side, facing Randol Mill Rd", "base_wait": 12, "surge": 10, "surge_phase": 0.0 },
-    { "id": "E", "location": "east side, near Lot 4 parking", "base_wait": 8, "surge": 6, "surge_phase": 1.2 },
-    { "id": "F", "location": "southeast corner, closest to shuttle drop-off", "base_wait": 15, "surge": 14, "surge_phase": 2.1 },
-    { "id": "K", "location": "south side, main plaza entrance", "base_wait": 20, "surge": 22, "surge_phase": 3.0 },
-    { "id": "M", "location": "west side, near Lot 10 parking", "base_wait": 6, "surge": 5, "surge_phase": 4.4 }
+    { "id": "A", "location": "north side, facing Randol Mill Rd", "lat": 32.7492, "lng": -97.0945, "base_wait": 12, "surge": 10, "surge_phase": 0.0 },
+    { "id": "E", "location": "east side, near Lot 4 parking", "lat": 32.7473, "lng": -97.0917, "base_wait": 8, "surge": 6, "surge_phase": 1.2 },
+    { "id": "F", "location": "southeast corner, closest to shuttle drop-off", "lat": 32.7458, "lng": -97.0923, "base_wait": 15, "surge": 14, "surge_phase": 2.1 },
+    { "id": "K", "location": "south side, main plaza entrance", "lat": 32.7454, "lng": -97.0945, "base_wait": 20, "surge": 22, "surge_phase": 3.0 },
+    { "id": "M", "location": "west side, near Lot 10 parking", "lat": 32.7473, "lng": -97.0973, "base_wait": 6, "surge": 5, "surge_phase": 4.4 }
   ],
   "sections": [
     { "range": [100, 151], "gate": "A", "level": "Hall of Fame (lower)" },

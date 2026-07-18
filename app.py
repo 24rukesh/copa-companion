@@ -39,7 +39,15 @@ def crowd_snapshot(now: float | None = None) -> list[dict]:
     for gate in DATA["gates"]:
         wave = math.sin(minute / 180 * 2 * math.pi + gate["surge_phase"])
         wait = max(2, round(gate["base_wait"] + gate["surge"] * wave))
-        snapshot.append({"gate": gate["id"], "location": gate["location"], "wait_min": wait})
+        snapshot.append(
+            {
+                "gate": gate["id"],
+                "location": gate["location"],
+                "lat": gate["lat"],
+                "lng": gate["lng"],
+                "wait_min": wait,
+            }
+        )
     return snapshot
 
 
@@ -71,11 +79,19 @@ LIVE GATE QUEUES (minutes):
 {queues}
 
 FAN'S TICKET: {ticket}
+FAN'S CURRENT POSITION: {position}
 """
 
 
-def build_context(section: int | None) -> tuple[str, list[dict]]:
+def build_context(
+    section: int | None, distance_km: float | None = None, eta_min: int | None = None
+) -> tuple[str, list[dict]]:
     snapshot = crowd_snapshot()
+    position = "unknown"
+    if distance_km is not None:
+        position = f"about {distance_km} km from the stadium"
+        if eta_min is not None:
+            position += f", roughly {eta_min} min of travel away"
     ticket = "unknown"
     if section is not None:
         info = section_info(section)
@@ -89,7 +105,12 @@ def build_context(section: int | None) -> tuple[str, list[dict]]:
     )
     queues = ", ".join(f"Gate {g['gate']}: {g['wait_min']} min" for g in snapshot)
     prompt = SYSTEM_PROMPT.format(
-        venue=DATA["venue"], event=DATA["event"], facts=facts, queues=queues, ticket=ticket
+        venue=DATA["venue"],
+        event=DATA["event"],
+        facts=facts,
+        queues=queues,
+        ticket=ticket,
+        position=position,
     )
     return prompt, snapshot
 
@@ -105,10 +126,19 @@ def ask_gemini(system: str, message: str) -> str:
     return resp.text or "Sorry, I could not generate an answer. Please try again."
 
 
-def fallback_answer(message: str, section: int | None, snapshot: list[dict]) -> str:
+def fallback_answer(
+    message: str,
+    section: int | None,
+    snapshot: list[dict],
+    distance_km: float | None = None,
+    eta_min: int | None = None,
+) -> str:
     """Keyword-routed answers when no Gemini key is configured (offline demo)."""
     text = message.lower()
     fast = best_gate(snapshot)
+    position = ""
+    if distance_km is not None and eta_min is not None:
+        position = f" You are ~{distance_km} km away, about {eta_min} min of travel."
 
     if any(w in text for w in ("gate", "puerta", "entry", "entrance", "entrada", "where do i go", "donde")):
         lines = []
@@ -123,6 +153,8 @@ def fallback_answer(message: str, section: int | None, snapshot: list[dict]) -> 
                     f"Faster option: Gate {fast['gate']} ({fast['location']}), only {fast['wait_min']} min. "
                     f"All gates accept all tickets."
                 )
+            if position:
+                lines.append(position.strip())
         else:
             lines.append(
                 f"Shortest queue right now: Gate {fast['gate']} ({fast['location']}), {fast['wait_min']} min. "
@@ -158,25 +190,29 @@ def fallback_answer(message: str, section: int | None, snapshot: list[dict]) -> 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=500)
     section: int | None = Field(default=None, ge=1, le=999)
+    # distance/ETA computed client-side from the fan's position; raw
+    # coordinates deliberately never reach the server (privacy)
+    distance_km: float | None = Field(default=None, ge=0, le=1000)
+    eta_min: int | None = Field(default=None, ge=0, le=6000)
 
 
 @app.post("/api/chat")
 def chat(req: ChatRequest) -> dict:
-    system, snapshot = build_context(req.section)
+    system, snapshot = build_context(req.section, req.distance_km, req.eta_min)
     if os.environ.get("GEMINI_API_KEY"):
         try:
             reply = ask_gemini(system, req.message)
         except Exception:
             # never leak provider errors to the client; degrade gracefully
-            reply = fallback_answer(req.message, req.section, snapshot)
+            reply = fallback_answer(req.message, req.section, snapshot, req.distance_km, req.eta_min)
     else:
-        reply = fallback_answer(req.message, req.section, snapshot)
+        reply = fallback_answer(req.message, req.section, snapshot, req.distance_km, req.eta_min)
     return {"reply": reply}
 
 
 @app.get("/api/crowd")
 def crowd() -> dict:
-    return {"gates": crowd_snapshot()}
+    return {"venue": DATA["coords"], "gates": crowd_snapshot()}
 
 
 @app.get("/api/ops")
