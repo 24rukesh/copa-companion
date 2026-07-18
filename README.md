@@ -34,8 +34,14 @@ gate is nearly empty.
    (recognition language follows the browser locale). Uses the browser's
    native Web Speech API: free, no dependencies, no API key. The button hides
    itself on browsers without support (e.g. Firefox).
-6. **Organizer ops summary** — the same crowd data summarized for staff:
-   which gates are above threshold and where to redirect arrivals.
+6. **Organizer dashboard** (`/organizer`) — a separate staff-facing page fed by
+   the same live data: per-gate status grid with 2-minute trends and load
+   ratios (1.0 = normal inflow), an AI-written ops briefing with prioritized
+   actions (Gemini, rule-based fallback), an alerts panel, and a staggered
+   post-match exit plan per seating level. Trends need no database — the
+   simulated feed is deterministic on timestamp, so "two minutes ago" is just
+   a second call. No auth by design (demo scope); a real deployment would put
+   this behind staff login.
 
 ## Approach and logic
 

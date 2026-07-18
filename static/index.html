@@ -127,7 +127,7 @@
   }
   #geo-summary.on { display: block; }
   .geo-note { font-size: .75rem; color: #64788d; margin: .6rem 0 0; }
-  #ticket-result, #ops-summary { font-size: .88rem; color: var(--muted); margin: .6rem 0 0; min-height: 1.2em; }
+  #ticket-result { font-size: .88rem; color: var(--muted); margin: .6rem 0 0; min-height: 1.2em; }
   #ticket-result:not(:empty) {
     color: var(--text); background: rgba(52, 217, 123, .1);
     border: 1px solid rgba(52, 217, 123, .3); border-radius: 10px; padding: .55rem .8rem;
@@ -206,13 +206,9 @@
     </form>
   </section>
 
-  <section aria-labelledby="ops-h">
-    <h2 id="ops-h"><span class="step" aria-hidden="true">✦</span>Organizer view</h2>
-    <button id="ops-btn" type="button">Refresh ops summary</button>
-    <p id="ops-summary" role="status"></p>
-  </section>
+
 </main>
-<footer>Demo data is simulated. Not affiliated with FIFA.</footer>
+<footer>Demo data is simulated. Not affiliated with FIFA. · <a href="/organizer" style="color:#34d97b">Stadium staff? Open the organizer dashboard →</a></footer>
 
 <script>
   let section = null;
@@ -392,12 +388,6 @@
           ? "Location permission denied — allow it in your browser to use this."
           : "Could not get your location. Try again.";
     }, { enableHighAccuracy: true, timeout: 10000 });
-  });
-
-  $("ops-btn").addEventListener("click", async () => {
-    const data = await api("/api/ops");
-    $("ops-summary").textContent = data.summary +
-      (data.alerts.length ? ` (alerts: Gate ${data.alerts.join(", Gate ")})` : "");
   });
 
   refreshGates();

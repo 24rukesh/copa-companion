@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -215,22 +216,84 @@ def crowd() -> dict:
     return {"venue": DATA["coords"], "gates": crowd_snapshot()}
 
 
+def ops_state(now: float | None = None) -> dict:
+    """Full organizer picture: waits + trend + load ratio + alerts + exit plan.
+
+    Trend needs no storage: the simulated feed is deterministic on timestamp,
+    so 'two minutes ago' is just a second call. A real sensor feed would keep
+    a two-point history instead.
+    """
+    now = time.time() if now is None else now
+    snapshot = crowd_snapshot(now)
+    prev = {g["gate"]: g["wait_min"] for g in crowd_snapshot(now - 120)}
+    base = {g["id"]: g["base_wait"] for g in DATA["gates"]}
+    for g in snapshot:
+        delta = g["wait_min"] - prev[g["gate"]]
+        g["trend"] = "rising" if delta >= 2 else "falling" if delta <= -2 else "steady"
+        g["load"] = round(g["wait_min"] / base[g["gate"]], 1)  # 1.0 = normal inflow
+    alerts = [g["gate"] for g in snapshot if g["wait_min"] >= WAIT_ALERT_MINUTES]
+    exit_plan = [
+        {
+            "level": s["level"],
+            "hold_min": i * 8,
+            "route": DATA["transit"][i % len(DATA["transit"])]["mode"],
+        }
+        for i, s in enumerate(DATA["sections"])
+    ]
+    return {"gates": snapshot, "alerts": alerts, "exit_plan": exit_plan}
+
+
 @app.get("/api/ops")
 def ops() -> dict:
-    """Organizer view: same crowd data, summarized for decision support."""
-    snapshot = crowd_snapshot()
-    alerts = [g for g in snapshot if g["wait_min"] >= WAIT_ALERT_MINUTES]
-    fast = best_gate(snapshot)
-    summary = (
-        f"{len(alerts)} gate(s) above {WAIT_ALERT_MINUTES} min. "
-        + (
-            "Recommend redirecting arrivals to Gate "
-            f"{fast['gate']} ({fast['wait_min']} min) via signage and app push."
-            if alerts
-            else "All gates within normal range."
+    """Organizer view: same crowd data, enriched for decision support."""
+    return ops_state()
+
+
+OPS_PROMPT = """You are the operations-room assistant at {venue} for {event}.
+Below is the live gate state: queue wait in minutes, trend over the last two
+minutes, and load (1.0 = normal inflow for that gate). Write a briefing for
+stadium staff: 2 sentences of situation, then up to 3 prioritized actions as
+short imperative bullets. Plain language, no fluff, only facts from the data.
+
+GATE STATE:
+{state}
+"""
+
+
+def fallback_briefing(state: dict) -> str:
+    gates = state["gates"]
+    worst = max(gates, key=lambda g: g["wait_min"])
+    fast = best_gate(gates)
+    rising = [g["gate"] for g in gates if g["trend"] == "rising"]
+    lines = [
+        f"Worst queue: Gate {worst['gate']} at {worst['wait_min']} min "
+        f"({worst['load']}x normal, {worst['trend']}). "
+        f"Shortest: Gate {fast['gate']} at {fast['wait_min']} min."
+    ]
+    if state["alerts"]:
+        lines.append(
+            f"ACTIONS: Redirect arrivals from Gate {worst['gate']} to Gate {fast['gate']} "
+            f"via signage and app push. Staff the overflow lane at Gate {worst['gate']}."
         )
-    )
-    return {"gates": snapshot, "alerts": [g["gate"] for g in alerts], "summary": summary}
+    else:
+        lines.append("All gates within normal range. No intervention needed.")
+    if rising:
+        lines.append(f"Watch: rising queues at Gate {', Gate '.join(rising)}.")
+    return " ".join(lines)
+
+
+@app.get("/api/ops/briefing")
+def ops_briefing() -> dict:
+    state = ops_state()
+    if os.environ.get("GEMINI_API_KEY"):
+        prompt = OPS_PROMPT.format(
+            venue=DATA["venue"], event=DATA["event"], state=json.dumps(state["gates"])
+        )
+        try:
+            return {"briefing": ask_gemini(prompt, "Write the briefing now.")}
+        except Exception:
+            pass  # fall through to rule-based
+    return {"briefing": fallback_briefing(state)}
 
 
 def parse_section(ticket_text: str) -> int | None:
@@ -249,6 +312,12 @@ def ticket(req: TicketRequest) -> dict:
     if section is None or (info := section_info(section)) is None:
         raise HTTPException(422, "Could not find a valid section number in the ticket text.")
     return {"section": section, "gate": info["gate"], "level": info["level"]}
+
+
+# ponytail: no auth on the staff dashboard — demo scope; real deploy puts it behind staff login
+@app.get("/organizer")
+def organizer_page() -> FileResponse:
+    return FileResponse(BASE_DIR / "static" / "organizer.html")
 
 
 app.mount("/", StaticFiles(directory=BASE_DIR / "static", html=True), name="static")

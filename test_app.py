@@ -64,11 +64,30 @@ def test_chat_uses_travel_context(monkeypatch):
     assert "3.2 km" in res.json()["reply"]
 
 
-def test_ops_summary():
+def test_ops_state():
     res = client.get("/api/ops")
     assert res.status_code == 200
     data = res.json()
-    assert "summary" in data and len(data["gates"]) == 5
+    assert len(data["gates"]) == 5
+    for g in data["gates"]:
+        assert g["trend"] in ("rising", "falling", "steady")
+        assert g["load"] > 0
+    assert len(data["exit_plan"]) == 5
+    assert data["exit_plan"][0]["hold_min"] == 0  # first group releases immediately
+
+
+def test_ops_briefing_fallback(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    res = client.get("/api/ops/briefing")
+    assert res.status_code == 200
+    text = res.json()["briefing"]
+    assert "Gate" in text and ("ACTIONS" in text or "normal range" in text)
+
+
+def test_organizer_page():
+    res = client.get("/organizer")
+    assert res.status_code == 200
+    assert "Organizer Dashboard" in res.text
 
 
 def test_serves_ui():
