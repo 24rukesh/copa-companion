@@ -30,7 +30,11 @@ gate is nearly empty.
    (gates, food, transit, bag policy, accessibility, first aid…). Ask in any
    language; Gemini answers in that language, using only the facts and live
    queue data — and reroutes you to a faster gate when yours is congested.
-5. **Organizer ops summary** — the same crowd data summarized for staff:
+5. **Voice input** — tap the mic and speak your question in your own language
+   (recognition language follows the browser locale). Uses the browser's
+   native Web Speech API: free, no dependencies, no API key. The button hides
+   itself on browsers without support (e.g. Firefox).
+6. **Organizer ops summary** — the same crowd data summarized for staff:
    which gates are above threshold and where to redirect arrivals.
 
 ## Approach and logic

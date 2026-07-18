@@ -105,6 +105,9 @@
   }
   .quick button:hover { border-color: var(--green); box-shadow: none; }
 
+  #mic-btn { background: var(--field); color: var(--text); border: 1px solid var(--panel-border); flex: none; }
+  #mic-btn.listening { background: var(--red); color: #fff; border-color: var(--red); animation: pulse 1.2s ease-in-out infinite; }
+
   #log { list-style: none; margin: 0 0 .85rem; padding: 0; max-height: 42vh; overflow-y: auto; }
   #log li {
     margin-bottom: .55rem; padding: .65rem .9rem; border-radius: 14px; max-width: 88%;
@@ -192,6 +195,12 @@
       <label for="msg">Your question</label>
       <div class="row">
         <input id="msg" autocomplete="off" maxlength="500" required placeholder="Type in your language…">
+        <button id="mic-btn" type="button" aria-label="Speak your question" aria-pressed="false" hidden>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="vertical-align:-3px">
+            <rect x="9" y="2.5" width="6" height="11" rx="3"/>
+            <path d="M5 11a7 7 0 0 0 14 0M12 18v3.5"/>
+          </svg>
+        </button>
         <button type="submit">Send</button>
       </div>
     </form>
@@ -283,6 +292,34 @@
       $("chat-form").requestSubmit();
     })
   );
+
+  // ---- Voice input: native Web Speech API, free, no dependencies ----
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SR) {
+    const mic = $("mic-btn");
+    mic.hidden = false;
+    const rec = new SR();
+    rec.lang = navigator.language;   // recognize in the fan's own language
+    rec.interimResults = false;
+    let listening = false;
+    rec.onresult = (ev) => {
+      $("msg").value = ev.results[0][0].transcript;
+      $("chat-form").requestSubmit();
+    };
+    rec.onend = () => {
+      listening = false;
+      mic.classList.remove("listening");
+      mic.setAttribute("aria-pressed", "false");
+    };
+    rec.onerror = rec.onend;
+    mic.addEventListener("click", () => {
+      if (listening) { rec.stop(); return; }
+      listening = true;
+      mic.classList.add("listening");
+      mic.setAttribute("aria-pressed", "true");
+      rec.start();
+    });
+  }
 
   // ---- Where you are: geolocation + distance/ETA + map ----
   const havKm = (a, b) => {
