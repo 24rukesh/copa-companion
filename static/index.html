@@ -18,6 +18,9 @@
     --radius: 16px;
   }
   * { box-sizing: border-box; }
+  .skip { position: absolute; left: -9999px; top: 0; background: var(--green); color: #06240f;
+          padding: .6rem 1rem; border-radius: 0 0 10px 0; font-weight: 700; z-index: 10; }
+  .skip:focus { left: 0; }
   body {
     margin: 0; color: var(--text);
     font-family: "Archivo", system-ui, sans-serif; line-height: 1.5;
@@ -140,6 +143,7 @@
 </style>
 </head>
 <body>
+<a class="skip" href="#msg">Skip to the assistant</a>
 <header>
   <div class="crest" aria-hidden="true">
     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -364,14 +368,15 @@
     $("geo-status").textContent = "Locating…";
     navigator.geolocation.getCurrentPosition(async (pos) => {
       const me = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      const WALK_CUTOFF_KM = 2.5, WALK_KMH = 4.8, ROAD_FACTOR = 1.3, DRIVE_KMH = 40;
       let km, min, line = null, how = "driving";
       try {
         ({ km, min, line } = await osrmRoute(me));
       } catch {
-        km = havKm(me, venue) * 1.3; // road factor over straight line
-        min = (km / 40) * 60;        // ~40 km/h urban driving estimate
+        km = havKm(me, venue) * ROAD_FACTOR; // estimate over straight line
+        min = (km / DRIVE_KMH) * 60;
       }
-      if (km < 2.5) { how = "walking"; min = (km / 4.8) * 60; }
+      if (km < WALK_CUTOFF_KM) { how = "walking"; min = (km / WALK_KMH) * 60; }
       const nearest = lastGates.reduce((a, b) => (havKm(me, a) < havKm(me, b) ? a : b));
       travel = { distance_km: Math.round(km * 10) / 10, eta_min: Math.round(min) };
       $("geo-status").textContent = "";

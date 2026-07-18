@@ -1,0 +1,14 @@
+Challenge 4 of the Hack2Skill GenAI Hackathon asked us to pick one vertical for the FIFA World Cup 2026.
+
+I picked the fan experience — then realised the same live crowd feed that rescues a lost fan is exactly what the people running the stadium are flying without.
+
+So I built both, from one engine: a multilingual fan concierge, and an organizer operations dashboard.
+
+Meet Copa Companion. Full walkthrough in the document below 👇
+
+🚀 Live demo: ch4.rukesh.in
+💻 Code: github.com/24rukesh/copa-companion
+
+Hack2Skill GenAI Hackathon · Challenge 4 · not affiliated with FIFA
+
+#GenAI #FIFAWorldCup2026 #Hackathon #AI #FastAPI #Gemini #ProductEngineering

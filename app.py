@@ -7,23 +7,50 @@ rule-based assistant so the demo and tests work offline.
 """
 
 import json
+import logging
 import math
 import os
 import re
 import time
+from collections import deque
+from functools import lru_cache
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger("copa")
 
 BASE_DIR = Path(__file__).parent
 DATA = json.loads((BASE_DIR / "data" / "stadium.json").read_text(encoding="utf-8"))
 
 WAIT_ALERT_MINUTES = 30  # ops dashboard flags gates above this
+REROUTE_ADVANTAGE_MIN = 10  # suggest another gate when it saves at least this
+TREND_DELTA_MIN = 2  # minutes of change over 2 min that counts as a trend
+OPS_BUCKET_SECONDS = 15  # ops state is memoized per 15s tick (matches UI poll)
+RATE_LIMIT = 20  # chat requests allowed per client...
+RATE_WINDOW = 60  # ...within this many seconds
+
+# static part of the assistant context, built once — not per request
+FACTS_JSON = json.dumps(
+    {k: DATA[k] for k in ("faq", "concessions", "transit", "sections")},
+    ensure_ascii=False,
+)
 
 app = FastAPI(title="Copa Companion", docs_url=None, redoc_url=None)
+app.add_middleware(GZipMiddleware, minimum_size=500)
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    resp = await call_next(request)
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["X-Frame-Options"] = "DENY"
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    return resp
 
 
 # ---------------------------------------------------------------- crowd feed
@@ -100,15 +127,11 @@ def build_context(
             ticket = (
                 f"Section {section}, {info['level']}, assigned entry Gate {info['gate']}"
             )
-    facts = json.dumps(
-        {k: DATA[k] for k in ("faq", "concessions", "transit", "sections")},
-        ensure_ascii=False,
-    )
     queues = ", ".join(f"Gate {g['gate']}: {g['wait_min']} min" for g in snapshot)
     prompt = SYSTEM_PROMPT.format(
         venue=DATA["venue"],
         event=DATA["event"],
-        facts=facts,
+        facts=FACTS_JSON,
         queues=queues,
         ticket=ticket,
         position=position,
@@ -149,7 +172,7 @@ def fallback_answer(
                 f"Your seat (section {section}) is on the {info['level']}, assigned Gate {info['gate']} "
                 f"({assigned['location']}) — current wait {assigned['wait_min']} min."
             )
-            if fast["gate"] != info["gate"] and assigned["wait_min"] - fast["wait_min"] >= 10:
+            if fast["gate"] != info["gate"] and assigned["wait_min"] - fast["wait_min"] >= REROUTE_ADVANTAGE_MIN:
                 lines.append(
                     f"Faster option: Gate {fast['gate']} ({fast['location']}), only {fast['wait_min']} min. "
                     f"All gates accept all tickets."
@@ -188,6 +211,22 @@ def fallback_answer(
 
 # ------------------------------------------------------------------- routes
 
+# ponytail: in-memory per-process rate limit — enough for one container; use
+# a shared store (redis) if this ever scales horizontally
+_hits: dict[str, deque] = {}
+
+
+def within_rate_limit(client_ip: str, now: float | None = None) -> bool:
+    now = time.time() if now is None else now
+    q = _hits.setdefault(client_ip, deque())
+    while q and now - q[0] > RATE_WINDOW:
+        q.popleft()
+    if len(q) >= RATE_LIMIT:
+        return False
+    q.append(now)
+    return True
+
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=500)
     section: int | None = Field(default=None, ge=1, le=999)
@@ -198,13 +237,17 @@ class ChatRequest(BaseModel):
 
 
 @app.post("/api/chat")
-def chat(req: ChatRequest) -> dict:
+def chat(req: ChatRequest, request: Request) -> dict:
+    client_ip = request.client.host if request.client else "unknown"
+    if not within_rate_limit(client_ip):
+        raise HTTPException(429, "Too many requests — slow down a little.")
     system, snapshot = build_context(req.section, req.distance_km, req.eta_min)
     if os.environ.get("GEMINI_API_KEY"):
         try:
             reply = ask_gemini(system, req.message)
         except Exception:
             # never leak provider errors to the client; degrade gracefully
+            logger.exception("Gemini chat call failed, using fallback")
             reply = fallback_answer(req.message, req.section, snapshot, req.distance_km, req.eta_min)
     else:
         reply = fallback_answer(req.message, req.section, snapshot, req.distance_km, req.eta_min)
@@ -217,19 +260,30 @@ def crowd() -> dict:
 
 
 def ops_state(now: float | None = None) -> dict:
+    """Memoized per 15s bucket: N dashboard viewers cost one computation."""
+    now = time.time() if now is None else now
+    return _ops_state_bucket(int(now // OPS_BUCKET_SECONDS))
+
+
+@lru_cache(maxsize=4)
+def _ops_state_bucket(bucket: int) -> dict:
     """Full organizer picture: waits + trend + load ratio + alerts + exit plan.
 
     Trend needs no storage: the simulated feed is deterministic on timestamp,
     so 'two minutes ago' is just a second call. A real sensor feed would keep
     a two-point history instead.
     """
-    now = time.time() if now is None else now
+    now = bucket * OPS_BUCKET_SECONDS
     snapshot = crowd_snapshot(now)
     prev = {g["gate"]: g["wait_min"] for g in crowd_snapshot(now - 120)}
     base = {g["id"]: g["base_wait"] for g in DATA["gates"]}
     for g in snapshot:
         delta = g["wait_min"] - prev[g["gate"]]
-        g["trend"] = "rising" if delta >= 2 else "falling" if delta <= -2 else "steady"
+        g["trend"] = (
+            "rising" if delta >= TREND_DELTA_MIN
+            else "falling" if delta <= -TREND_DELTA_MIN
+            else "steady"
+        )
         g["load"] = round(g["wait_min"] / base[g["gate"]], 1)  # 1.0 = normal inflow
     alerts = [g["gate"] for g in snapshot if g["wait_min"] >= WAIT_ALERT_MINUTES]
     exit_plan = [
@@ -292,7 +346,7 @@ def ops_briefing() -> dict:
         try:
             return {"briefing": ask_gemini(prompt, "Write the briefing now.")}
         except Exception:
-            pass  # fall through to rule-based
+            logger.exception("Gemini briefing call failed, using fallback")
     return {"briefing": fallback_briefing(state)}
 
 

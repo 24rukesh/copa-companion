@@ -96,6 +96,21 @@ def test_organizer_page():
     assert "Organizer Dashboard" in res.text
 
 
+def test_chat_gemini_path_mocked(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(m, "ask_gemini", lambda system, msg: f"MOCKED:{msg}")
+    res = client.post("/api/chat", json={"message": "hola"})
+    assert res.json()["reply"] == "MOCKED:hola"
+
+
+def test_chat_rate_limited(monkeypatch):
+    monkeypatch.setattr(m, "RATE_LIMIT", 3)
+    m._hits.clear()
+    codes = [client.post("/api/chat", json={"message": "hi"}).status_code for _ in range(5)]
+    m._hits.clear()
+    assert codes[:3] == [200, 200, 200] and codes[3] == 429
+
+
 def test_serves_ui():
     res = client.get("/")
     assert res.status_code == 200

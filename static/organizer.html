@@ -163,12 +163,15 @@
 
   async function briefing() {
     $("brief-stamp").textContent = "generating…";
+    $("briefing").setAttribute("aria-busy", "true");
     try {
       const res = await fetch("/api/ops/briefing");
       $("briefing").textContent = (await res.json()).briefing;
       $("brief-stamp").textContent = "updated " + new Date().toLocaleTimeString();
     } catch {
       $("brief-stamp").textContent = "failed — try again";
+    } finally {
+      $("briefing").setAttribute("aria-busy", "false");
     }
   }
 

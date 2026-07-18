@@ -114,6 +114,7 @@ uvicorn app:app --reload
 Tests:
 
 ```bash
+pip install -r requirements-dev.txt
 pytest -q
 ```
 
@@ -128,6 +129,15 @@ image). Plain Docker:
 docker build -t copa-companion .
 docker run -p 8000:8000 -e GEMINI_API_KEY=... copa-companion
 ```
+
+## Sustainability
+
+The problem statement lists sustainability as a target area, and the app
+contributes to it directly: transit-first exit guidance (shuttle and rail
+before rideshare), staggered departures that cut idling queues of cars, and
+gate rerouting that shortens the time 80,000 people spend standing outdoors.
+Fewer solo rides and less engine idling is the single biggest emissions lever
+a matchday app has.
 
 ## Security
 
