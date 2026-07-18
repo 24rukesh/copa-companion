@@ -4,61 +4,143 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Copa Companion — Matchday Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=Archivo+Black&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0d1b2a; --panel: #1b263b; --panel2: #24344d; --text: #e8eef5;
-    --muted: #9fb0c3; --accent: #37c871; --warn: #e4b93c; --alert: #e4573c;
+    --bg: #0a1420; --bg2: #0e1c2e; --panel: rgba(255, 255, 255, .045);
+    --panel-border: rgba(255, 255, 255, .09); --field: #16283d;
+    --text: #eef4fa; --muted: #9db2c8;
+    --green: #34d97b; --green-deep: #14b85c; --gold: #f4c542; --red: #ff6b52;
+    --radius: 16px;
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; font-family: system-ui, sans-serif; background: var(--bg);
-    color: var(--text); display: flex; flex-direction: column; min-height: 100vh;
+    margin: 0; color: var(--text);
+    font-family: "Archivo", system-ui, sans-serif; line-height: 1.5;
+    background:
+      radial-gradient(1100px 500px at 80% -10%, rgba(52, 217, 123, .14), transparent 60%),
+      radial-gradient(900px 500px at -10% 30%, rgba(37, 99, 235, .16), transparent 55%),
+      linear-gradient(180deg, var(--bg2), var(--bg) 40%);
+    min-height: 100vh;
   }
-  header { padding: 1rem 1.25rem; background: var(--panel); }
-  header h1 { margin: 0; font-size: 1.25rem; }
-  header p { margin: .25rem 0 0; color: var(--muted); font-size: .85rem; }
-  main { flex: 1; max-width: 720px; width: 100%; margin: 0 auto; padding: 1rem; }
-  section { background: var(--panel); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; }
-  h2 { font-size: 1rem; margin: 0 0 .75rem; }
-  label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: .3rem; }
-  input, button {
-    font: inherit; border-radius: 8px; border: 1px solid #3a4c66;
-    padding: .55rem .75rem;
+  header {
+    max-width: 760px; margin: 0 auto; padding: 2.2rem 1.25rem 1rem;
+    display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
   }
-  input { background: var(--panel2); color: var(--text); width: 100%; }
-  input:focus, button:focus { outline: 3px solid var(--accent); outline-offset: 1px; }
+  .crest {
+    width: 52px; height: 52px; border-radius: 14px; flex: none;
+    background: linear-gradient(135deg, var(--green), var(--green-deep));
+    display: grid; place-items: center; color: #06240f;
+    box-shadow: 0 8px 24px rgba(52, 217, 123, .35);
+  }
+  header h1 {
+    margin: 0; font-family: "Archivo Black", "Archivo", sans-serif;
+    font-size: clamp(1.5rem, 4vw, 2rem); letter-spacing: .02em; line-height: 1.1;
+  }
+  header p { margin: .2rem 0 0; color: var(--muted); font-size: .9rem; }
+  .live {
+    margin-left: auto; display: inline-flex; align-items: center; gap: .45rem;
+    font-size: .78rem; font-weight: 600; letter-spacing: .08em; color: var(--green);
+    border: 1px solid rgba(52, 217, 123, .35); border-radius: 999px; padding: .35rem .8rem;
+    background: rgba(52, 217, 123, .08);
+  }
+  .live .dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--green);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { opacity: .35; transform: scale(.8); } }
+
+  main { max-width: 760px; margin: 0 auto; padding: .5rem 1.25rem 2rem; }
+  section {
+    background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1.1rem;
+    backdrop-filter: blur(8px);
+  }
+  h2 { display: flex; align-items: center; gap: .6rem; font-size: 1.02rem; margin: 0 0 .9rem; letter-spacing: .01em; }
+  .step {
+    width: 26px; height: 26px; border-radius: 8px; flex: none; display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--green), var(--green-deep));
+    color: #06240f; font-size: .85rem; font-weight: 800;
+  }
+  label { display: block; font-size: .84rem; color: var(--muted); margin-bottom: .35rem; }
+  input, button { font: inherit; border-radius: 12px; padding: .65rem .85rem; }
+  input {
+    background: var(--field); color: var(--text); width: 100%;
+    border: 1px solid var(--panel-border); transition: border-color .2s;
+  }
+  input::placeholder { color: #6d8095; }
+  input:focus { border-color: var(--green); }
+  input:focus-visible, button:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
   button {
-    background: var(--accent); color: #06240f; border: none; font-weight: 600;
-    cursor: pointer; margin-top: .5rem;
+    background: linear-gradient(135deg, var(--green), var(--green-deep));
+    color: #06240f; border: none; font-weight: 700; cursor: pointer;
+    transition: transform .2s, box-shadow .2s, filter .2s;
   }
-  .row { display: flex; gap: .5rem; }
+  button:hover { filter: brightness(1.08); box-shadow: 0 6px 18px rgba(52, 217, 123, .3); transform: translateY(-1px); }
+  button:active { transform: translateY(0); }
+  .row { display: flex; gap: .55rem; }
   .row input { flex: 1; }
-  .row button { margin-top: 0; }
-  #gates { display: flex; flex-wrap: wrap; gap: .5rem; }
+
+  #gates { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: .6rem; }
   .gate {
-    background: var(--panel2); border-radius: 8px; padding: .5rem .75rem;
-    font-size: .9rem; border-left: 4px solid var(--accent);
+    background: var(--field); border: 1px solid var(--panel-border); border-radius: 12px;
+    padding: .7rem .8rem; display: flex; flex-direction: column; gap: .35rem;
   }
-  .gate.warn { border-left-color: var(--warn); }
-  .gate.alert { border-left-color: var(--alert); }
-  #log { list-style: none; margin: 0 0 .75rem; padding: 0; max-height: 40vh; overflow-y: auto; }
-  #log li { margin-bottom: .6rem; padding: .6rem .8rem; border-radius: 10px; max-width: 90%; }
-  #log li.user { background: var(--panel2); margin-left: auto; }
-  #log li.bot { background: #14324a; }
-  #ticket-result, #ops-summary { font-size: .9rem; color: var(--muted); margin-top: .5rem; min-height: 1.2em; }
-  .quick { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .75rem; }
-  .quick button { background: var(--panel2); color: var(--text); font-weight: 400; font-size: .8rem; margin: 0; }
-  footer { text-align: center; color: var(--muted); font-size: .75rem; padding: 1rem; }
+  .gate .name { font-weight: 800; font-size: .95rem; letter-spacing: .03em; }
+  .gate .wait { font-size: 1.3rem; font-weight: 800; line-height: 1; }
+  .gate .loc { font-size: .72rem; color: var(--muted); }
+  .gate .bar { height: 5px; border-radius: 999px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+  .gate .bar i { display: block; height: 100%; border-radius: inherit; background: var(--green); transition: width .4s ease; }
+  .gate.warn .wait { color: var(--gold); } .gate.warn .bar i { background: var(--gold); }
+  .gate.alert .wait { color: var(--red); } .gate.alert .bar i { background: var(--red); }
+
+  .quick { display: flex; flex-wrap: wrap; gap: .45rem; margin-bottom: .85rem; }
+  .quick button {
+    background: var(--field); color: var(--text); font-weight: 500; font-size: .82rem;
+    border: 1px solid var(--panel-border); border-radius: 999px; padding: .45rem .85rem;
+  }
+  .quick button:hover { border-color: var(--green); box-shadow: none; }
+
+  #log { list-style: none; margin: 0 0 .85rem; padding: 0; max-height: 42vh; overflow-y: auto; }
+  #log li {
+    margin-bottom: .55rem; padding: .65rem .9rem; border-radius: 14px; max-width: 88%;
+    animation: rise .25s ease both;
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+  #log li.user { background: linear-gradient(135deg, #1d3a5f, #16304f); margin-left: auto; border-bottom-right-radius: 4px; }
+  #log li.bot { background: var(--field); border: 1px solid var(--panel-border); border-bottom-left-radius: 4px; }
+
+  #ticket-result, #ops-summary { font-size: .88rem; color: var(--muted); margin: .6rem 0 0; min-height: 1.2em; }
+  #ticket-result:not(:empty) {
+    color: var(--text); background: rgba(52, 217, 123, .1);
+    border: 1px solid rgba(52, 217, 123, .3); border-radius: 10px; padding: .55rem .8rem;
+  }
+  footer { text-align: center; color: #64788d; font-size: .75rem; padding: 0 1rem 2rem; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
 </style>
 </head>
 <body>
 <header>
-  <h1>⚽ Copa Companion</h1>
-  <p>AT&amp;T Stadium · FIFA World Cup 2026 · ask in any language</p>
+  <div class="crest" aria-hidden="true">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <circle cx="12" cy="12" r="9"/>
+      <path d="M12 7.5 8 10.4l1.5 4.6h5L16 10.4 12 7.5Zm0-4.5v4.5M4.4 8.5 8 10.4M6 19l3.5-4M18 19l-3.5-4M19.6 8.5 16 10.4"/>
+    </svg>
+  </div>
+  <div>
+    <h1>Copa Companion</h1>
+    <p>AT&amp;T Stadium · FIFA World Cup 2026 · ask in any language</p>
+  </div>
+  <span class="live"><span class="dot" aria-hidden="true"></span>LIVE QUEUES</span>
 </header>
 <main>
   <section aria-labelledby="ticket-h">
-    <h2 id="ticket-h">1 · Your ticket</h2>
+    <h2 id="ticket-h"><span class="step" aria-hidden="true">1</span>Your ticket</h2>
     <label for="ticket-text">Paste your ticket line (e.g. “Section 428, Row 12, Seat 8”)</label>
     <div class="row">
       <input id="ticket-text" autocomplete="off" placeholder="Section 428, Row 12, Seat 8">
@@ -68,12 +150,12 @@
   </section>
 
   <section aria-labelledby="crowd-h">
-    <h2 id="crowd-h">2 · Live gate queues</h2>
+    <h2 id="crowd-h"><span class="step" aria-hidden="true">2</span>Live gate queues</h2>
     <div id="gates" role="list" aria-label="Gate wait times"></div>
   </section>
 
   <section aria-labelledby="chat-h">
-    <h2 id="chat-h">3 · Ask anything</h2>
+    <h2 id="chat-h"><span class="step" aria-hidden="true">3</span>Ask anything</h2>
     <div class="quick" role="group" aria-label="Quick questions">
       <button type="button" data-q="Where is my gate?">Where is my gate?</button>
       <button type="button" data-q="¿Dónde hay comida halal?">¿Dónde hay comida halal?</button>
@@ -91,7 +173,7 @@
   </section>
 
   <section aria-labelledby="ops-h">
-    <h2 id="ops-h">Organizer view</h2>
+    <h2 id="ops-h"><span class="step" aria-hidden="true">✦</span>Organizer view</h2>
     <button id="ops-btn" type="button">Refresh ops summary</button>
     <p id="ops-summary" role="status"></p>
   </section>
@@ -123,12 +205,17 @@
   async function refreshGates() {
     try {
       const { gates } = await api("/api/crowd");
+      const max = Math.max(...gates.map((g) => g.wait_min), 40);
       $("gates").replaceChildren(...gates.map((g) => {
         const div = document.createElement("div");
         div.className = "gate" + (g.wait_min >= 30 ? " alert" : g.wait_min >= 15 ? " warn" : "");
         div.setAttribute("role", "listitem");
-        div.textContent = `Gate ${g.gate} · ${g.wait_min} min`;
-        div.title = g.location;
+        div.innerHTML = `
+          <span class="name">GATE ${g.gate}</span>
+          <span class="wait">${g.wait_min}<small style="font-size:.65rem;font-weight:500"> min</small></span>
+          <span class="bar" aria-hidden="true"><i style="width:${Math.round(g.wait_min / max * 100)}%"></i></span>
+          <span class="loc">${g.location}</span>`;
+        div.setAttribute("aria-label", `Gate ${g.gate}, ${g.wait_min} minute wait, ${g.location}`);
         return div;
       }));
     } catch { /* keep last snapshot on transient errors */ }
