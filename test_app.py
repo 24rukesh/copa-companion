@@ -111,6 +111,45 @@ def test_chat_rate_limited(monkeypatch):
     assert codes[:3] == [200, 200, 200] and codes[3] == 429
 
 
+def test_chat_fallback_food_filtered(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    res = client.post("/api/chat", json={"message": "where can I get halal food?"})
+    reply = res.json()["reply"]
+    assert "Halal Kitchen" in reply and "Veggie Corner" not in reply
+
+
+def test_chat_fallback_faq(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    res = client.post("/api/chat", json={"message": "what is the bag policy?"})
+    assert "Clear bags" in res.json()["reply"]
+
+
+def test_rate_limit_window_expires():
+    import app as appmod
+
+    appmod._hits.clear()
+    assert all(appmod.within_rate_limit("1.2.3.4", now=1000.0) for _ in range(appmod.RATE_LIMIT))
+    assert not appmod.within_rate_limit("1.2.3.4", now=1000.0)  # over the limit
+    assert appmod.within_rate_limit("1.2.3.4", now=1000.0 + appmod.RATE_WINDOW + 1)  # window rolls
+    appmod._hits.clear()
+
+
+def test_ops_alert_state_exists():
+    import crowd
+
+    alerted = [b for b in range(0, 720) if crowd._ops_state_bucket(b)["alerts"]]
+    assert alerted, "simulation never produces an alert state"
+    state = crowd._ops_state_bucket(alerted[0])
+    assert all(g["trend"] in ("rising", "falling", "steady") for g in state["gates"])
+    crowd._ops_state_bucket.cache_clear()
+
+
+def test_parse_section_edge_cases():
+    assert m.parse_section("sec#105") == 105
+    assert m.parse_section("Section: 200 Row 1") == 200
+    assert m.parse_section("row 12 seat 8") is None  # no section keyword
+
+
 def test_serves_ui():
     res = client.get("/")
     assert res.status_code == 200

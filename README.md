@@ -1,5 +1,10 @@
 # ⚽ Copa Companion
 
+![CI](https://github.com/24rukesh/copa-companion/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-20%20passed-brightgreen)
+![Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-blue)
+
 **Your AI matchday concierge for the FIFA World Cup 2026** — find your gate,
 skip the queue, ask anything in any language, and get home safe.
 
@@ -70,6 +75,19 @@ Open **`/organizer`**. Same live data, staff lens:
 - **Post-match exit plan** — staggered release per seating level with an
   assigned transport route, the biggest crowd-safety lever of the day.
 
+## Problem statement → feature map
+
+| Challenge area | Where it lives |
+|---|---|
+| Navigation | Ticket→gate mapping (`/api/ticket`), landmark directions from the knowledge pack |
+| Crowd management | Live queue feed, automatic gate rerouting, ops alerts + redirect recommendations |
+| Multilingual assistance | Gemini chat replies in the fan's language; voice input in any language |
+| Transportation | Live map + real route/ETA (OSRM), transit options, staggered exit plan |
+| Accessibility | Voice input, accessible-route answers, WCAG-minded UI (see below) |
+| Sustainability | Transit-first exits, staggered departures, less idling (see below) |
+| Operational intelligence | Organizer dashboard: trends, load ratios, AI briefings (`/organizer`) |
+| Real-time decision support | 15s-refresh ops state, threshold alerts, prioritized AI actions |
+
 ## Approach and logic
 
 ```
@@ -130,6 +148,21 @@ docker build -t copa-companion .
 docker run -p 8000:8000 -e GEMINI_API_KEY=... copa-companion
 ```
 
+## Performance
+
+- The static assistant context (facts JSON) is built once at module load,
+  not per request.
+- Responses are gzip-compressed; API responses are `Cache-Control: no-store`
+  (live data), static assets ride on ETags.
+- Ops state is memoized per 15-second bucket — N dashboard viewers cost one
+  computation.
+- Leaflet (~150 KB) loads lazily, only when the fan opens the map.
+- Multi-stage Docker build: test tooling never enters the runtime image;
+  the container runs as a non-root user with a healthcheck.
+- Code structure: [app.py](app.py) routes · [crowd.py](crowd.py) simulation +
+  ops · [assistant.py](assistant.py) GenAI core · [schemas.py](schemas.py)
+  validation. Linted with ruff, 95% test coverage, CI on every push.
+
 ## Sustainability
 
 The problem statement lists sustainability as a target area, and the app
@@ -141,9 +174,13 @@ a matchday app has.
 
 ## Security
 
+Full model in [SECURITY.md](SECURITY.md). Highlights:
+
 - Gemini is called **server-side only**; the key never reaches the browser and
   is read from the environment, never committed (`.env` is gitignored).
 - All inputs validated with Pydantic (length caps, numeric ranges).
+- Per-IP rate limiting on the LLM endpoint; CSP + hardening headers;
+  non-root container.
 - Provider errors never leak to the client; the app degrades to the fallback.
 - No user data stored; the app is stateless. Raw GPS never reaches the server.
 

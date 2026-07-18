@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Copa Companion — Matchday Assistant</title>
+<meta name="description" content="AI matchday concierge for the FIFA World Cup 2026: find your gate, skip the queue, ask anything in any language.">
+<meta name="color-scheme" content="dark">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=Archivo+Black&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   :root {
     --bg: #0a1420; --bg2: #0e1c2e; --panel: rgba(255, 255, 255, .045);
@@ -193,6 +193,7 @@
       <button type="button" data-q="¿Dónde hay comida halal?">¿Dónde hay comida halal?</button>
       <button type="button" data-q="How do I get back to Dallas after the match?">Transport after match</button>
       <button type="button" data-q="What is the bag policy?">Bag policy</button>
+      <button type="button" data-q="What accessibility help is available?">Accessibility help</button>
     </div>
     <ul id="log" aria-live="polite" aria-label="Conversation"></ul>
     <form id="chat-form">
@@ -330,6 +331,22 @@
     return 2 * R * Math.asin(Math.sqrt(s));
   };
 
+  // Leaflet loads only when the fan actually opens the map (~150 KB saved on first paint)
+  function ensureLeaflet() {
+    if (window.L) return Promise.resolve();
+    return new Promise((res, rej) => {
+      const css = document.createElement("link");
+      css.rel = "stylesheet";
+      css.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      document.head.appendChild(css);
+      const s = document.createElement("script");
+      s.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+      s.onload = res;
+      s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+
   async function osrmRoute(me) {
     // public demo router: real driving route + duration; fails → estimate
     const url = `https://router.project-osrm.org/route/v1/driving/` +
@@ -377,6 +394,7 @@
         min = (km / DRIVE_KMH) * 60;
       }
       if (km < WALK_CUTOFF_KM) { how = "walking"; min = (km / WALK_KMH) * 60; }
+      try { await ensureLeaflet(); } catch { /* map optional; summary still shows */ }
       const nearest = lastGates.reduce((a, b) => (havKm(me, a) < havKm(me, b) ? a : b));
       travel = { distance_km: Math.round(km * 10) / 10, eta_min: Math.round(min) };
       $("geo-status").textContent = "";
@@ -386,7 +404,7 @@
         `You are ${travel.distance_km} km from the stadium — about ${travel.eta_min} min ${how}. ` +
         `Nearest gate on arrival: Gate ${nearest.gate} (${nearest.wait_min} min queue). ` +
         `The assistant now knows how far away you are.`;
-      showMap(me, line);
+      if (window.L) showMap(me, line);
     }, (err) => {
       $("geo-status").textContent =
         err.code === err.PERMISSION_DENIED
