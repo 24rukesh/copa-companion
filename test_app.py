@@ -64,6 +64,12 @@ def test_chat_uses_travel_context(monkeypatch):
     assert "3.2 km" in res.json()["reply"]
 
 
+def test_chat_fallback_transport_quick_chip(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    res = client.post("/api/chat", json={"message": "How do I get back to Dallas after the match?"})
+    assert "After the match" in res.json()["reply"]
+
+
 def test_ops_state():
     res = client.get("/api/ops")
     assert res.status_code == 200

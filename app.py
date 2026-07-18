@@ -168,7 +168,7 @@ def fallback_answer(
         wanted = [s for s in stands if any(t in text for t in s["tags"])] or stands
         return "Food nearby: " + "; ".join(f"{s['name']} — {s['location']}" for s in wanted)
 
-    if any(w in text for w in ("exit", "leave", "train", "bus", "shuttle", "salida", "transporte", "uber", "taxi")):
+    if any(w in text for w in ("exit", "leave", "train", "bus", "shuttle", "salida", "transporte", "uber", "taxi", "get back", "go home", "after the match", "regresar")):
         return (
             "After the match: "
             + " | ".join(f"{t['mode']}: {t['detail']}" for t in DATA["transit"])
