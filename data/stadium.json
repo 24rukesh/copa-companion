@@ -1,0 +1,40 @@
+{
+  "venue": "AT&T Stadium, Arlington (Dallas), Texas",
+  "event": "FIFA World Cup 2026 — Group Stage",
+  "gates": [
+    { "id": "A", "location": "north side, facing Randol Mill Rd", "base_wait": 12, "surge": 10, "surge_phase": 0.0 },
+    { "id": "E", "location": "east side, near Lot 4 parking", "base_wait": 8, "surge": 6, "surge_phase": 1.2 },
+    { "id": "F", "location": "southeast corner, closest to shuttle drop-off", "base_wait": 15, "surge": 14, "surge_phase": 2.1 },
+    { "id": "K", "location": "south side, main plaza entrance", "base_wait": 20, "surge": 22, "surge_phase": 3.0 },
+    { "id": "M", "location": "west side, near Lot 10 parking", "base_wait": 6, "surge": 5, "surge_phase": 4.4 }
+  ],
+  "sections": [
+    { "range": [100, 151], "gate": "A", "level": "Hall of Fame (lower)" },
+    { "range": [200, 251], "gate": "E", "level": "Main Concourse" },
+    { "range": [300, 351], "gate": "F", "level": "Mezzanine" },
+    { "range": [400, 461], "gate": "K", "level": "Upper Concourse" },
+    { "range": [462, 499], "gate": "M", "level": "Upper Concourse West" }
+  ],
+  "concessions": [
+    { "name": "Tex-Mex Grill", "location": "Main Concourse, near section 220", "tags": ["tacos", "mexican"] },
+    { "name": "Halal Kitchen", "location": "Upper Concourse, near section 430", "tags": ["halal"] },
+    { "name": "Veggie Corner", "location": "Mezzanine, near section 315", "tags": ["vegetarian", "vegan"] },
+    { "name": "Classic Stand", "location": "every concourse, multiple locations", "tags": ["hot dogs", "nachos", "beer"] }
+  ],
+  "transit": [
+    { "mode": "Official shuttle bus", "detail": "runs every 10 min to Dallas & Fort Worth downtown hubs from Lot 6, first 90 min after final whistle" },
+    { "mode": "Trinity Metro TEXRail + shuttle", "detail": "shuttle from Lot 6 to CentrePort station, trains every 20 min" },
+    { "mode": "Rideshare", "detail": "official pickup zone Lot 14, expect 30-45 min wait and surge pricing right after the match" }
+  ],
+  "faq": [
+    { "q": "bag policy", "a": "Clear bags up to 30x30x15 cm only. Small clutches allowed. No backpacks." },
+    { "q": "re-entry", "a": "No re-entry once you pass the turnstiles." },
+    { "q": "water", "a": "Free water refill stations on every concourse near first aid points. One sealed plastic bottle up to 500 ml allowed in." },
+    { "q": "accessibility", "a": "Step-free access at every gate. Elevators near sections 108, 225, 320 and 440. Wheelchair seating on every level; staff at any Fan Help kiosk can assist. Sensory room near section 244." },
+    { "q": "prayer room", "a": "Multi-faith room on the Main Concourse near section 240, open from gates until 1 hour after the match." },
+    { "q": "first aid", "a": "First aid stations near sections 115, 230, 330 and 445. Dial staff at any Fan Help kiosk for emergencies." },
+    { "q": "lost and found", "a": "Guest Services at Gate A and Gate K, or report online at the venue website after the event." },
+    { "q": "smoking", "a": "The whole stadium is smoke-free, including e-cigarettes. No re-entry, so no smoke breaks outside." },
+    { "q": "kickoff", "a": "Gates open 3 hours before kickoff. Arrive at least 90 minutes early; security peaks 60-30 minutes before kickoff." }
+  ]
+}

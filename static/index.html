@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Copa Companion — Matchday Assistant</title>
+<style>
+  :root {
+    --bg: #0d1b2a; --panel: #1b263b; --panel2: #24344d; --text: #e8eef5;
+    --muted: #9fb0c3; --accent: #37c871; --warn: #e4b93c; --alert: #e4573c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: system-ui, sans-serif; background: var(--bg);
+    color: var(--text); display: flex; flex-direction: column; min-height: 100vh;
+  }
+  header { padding: 1rem 1.25rem; background: var(--panel); }
+  header h1 { margin: 0; font-size: 1.25rem; }
+  header p { margin: .25rem 0 0; color: var(--muted); font-size: .85rem; }
+  main { flex: 1; max-width: 720px; width: 100%; margin: 0 auto; padding: 1rem; }
+  section { background: var(--panel); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; }
+  h2 { font-size: 1rem; margin: 0 0 .75rem; }
+  label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: .3rem; }
+  input, button {
+    font: inherit; border-radius: 8px; border: 1px solid #3a4c66;
+    padding: .55rem .75rem;
+  }
+  input { background: var(--panel2); color: var(--text); width: 100%; }
+  input:focus, button:focus { outline: 3px solid var(--accent); outline-offset: 1px; }
+  button {
+    background: var(--accent); color: #06240f; border: none; font-weight: 600;
+    cursor: pointer; margin-top: .5rem;
+  }
+  .row { display: flex; gap: .5rem; }
+  .row input { flex: 1; }
+  .row button { margin-top: 0; }
+  #gates { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .gate {
+    background: var(--panel2); border-radius: 8px; padding: .5rem .75rem;
+    font-size: .9rem; border-left: 4px solid var(--accent);
+  }
+  .gate.warn { border-left-color: var(--warn); }
+  .gate.alert { border-left-color: var(--alert); }
+  #log { list-style: none; margin: 0 0 .75rem; padding: 0; max-height: 40vh; overflow-y: auto; }
+  #log li { margin-bottom: .6rem; padding: .6rem .8rem; border-radius: 10px; max-width: 90%; }
+  #log li.user { background: var(--panel2); margin-left: auto; }
+  #log li.bot { background: #14324a; }
+  #ticket-result, #ops-summary { font-size: .9rem; color: var(--muted); margin-top: .5rem; min-height: 1.2em; }
+  .quick { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .75rem; }
+  .quick button { background: var(--panel2); color: var(--text); font-weight: 400; font-size: .8rem; margin: 0; }
+  footer { text-align: center; color: var(--muted); font-size: .75rem; padding: 1rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>⚽ Copa Companion</h1>
+  <p>AT&amp;T Stadium · FIFA World Cup 2026 · ask in any language</p>
+</header>
+<main>
+  <section aria-labelledby="ticket-h">
+    <h2 id="ticket-h">1 · Your ticket</h2>
+    <label for="ticket-text">Paste your ticket line (e.g. “Section 428, Row 12, Seat 8”)</label>
+    <div class="row">
+      <input id="ticket-text" autocomplete="off" placeholder="Section 428, Row 12, Seat 8">
+      <button id="ticket-btn" type="button">Find my gate</button>
+    </div>
+    <p id="ticket-result" role="status"></p>
+  </section>
+
+  <section aria-labelledby="crowd-h">
+    <h2 id="crowd-h">2 · Live gate queues</h2>
+    <div id="gates" role="list" aria-label="Gate wait times"></div>
+  </section>
+
+  <section aria-labelledby="chat-h">
+    <h2 id="chat-h">3 · Ask anything</h2>
+    <div class="quick" role="group" aria-label="Quick questions">
+      <button type="button" data-q="Where is my gate?">Where is my gate?</button>
+      <button type="button" data-q="¿Dónde hay comida halal?">¿Dónde hay comida halal?</button>
+      <button type="button" data-q="How do I get back to Dallas after the match?">Transport after match</button>
+      <button type="button" data-q="What is the bag policy?">Bag policy</button>
+    </div>
+    <ul id="log" aria-live="polite" aria-label="Conversation"></ul>
+    <form id="chat-form">
+      <label for="msg">Your question</label>
+      <div class="row">
+        <input id="msg" autocomplete="off" maxlength="500" required placeholder="Type in your language…">
+        <button type="submit">Send</button>
+      </div>
+    </form>
+  </section>
+
+  <section aria-labelledby="ops-h">
+    <h2 id="ops-h">Organizer view</h2>
+    <button id="ops-btn" type="button">Refresh ops summary</button>
+    <p id="ops-summary" role="status"></p>
+  </section>
+</main>
+<footer>Demo data is simulated. Not affiliated with FIFA.</footer>
+
+<script>
+  let section = null;
+  const $ = (id) => document.getElementById(id);
+
+  async function api(path, body) {
+    const res = await fetch(path, body ? {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    } : undefined);
+    if (!res.ok) throw new Error((await res.json()).detail || "Request failed");
+    return res.json();
+  }
+
+  function addMsg(text, who) {
+    const li = document.createElement("li");
+    li.className = who;
+    li.textContent = text;
+    $("log").appendChild(li);
+    li.scrollIntoView({ block: "nearest" });
+  }
+
+  async function refreshGates() {
+    try {
+      const { gates } = await api("/api/crowd");
+      $("gates").replaceChildren(...gates.map((g) => {
+        const div = document.createElement("div");
+        div.className = "gate" + (g.wait_min >= 30 ? " alert" : g.wait_min >= 15 ? " warn" : "");
+        div.setAttribute("role", "listitem");
+        div.textContent = `Gate ${g.gate} · ${g.wait_min} min`;
+        div.title = g.location;
+        return div;
+      }));
+    } catch { /* keep last snapshot on transient errors */ }
+  }
+
+  $("ticket-btn").addEventListener("click", async () => {
+    try {
+      const data = await api("/api/ticket", { text: $("ticket-text").value });
+      section = data.section;
+      $("ticket-result").textContent =
+        `Section ${data.section} · ${data.level} · assigned Gate ${data.gate}. The assistant now knows your seat.`;
+    } catch (e) {
+      $("ticket-result").textContent = e.message;
+    }
+  });
+
+  $("chat-form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const message = $("msg").value.trim();
+    if (!message) return;
+    $("msg").value = "";
+    addMsg(message, "user");
+    try {
+      const { reply } = await api("/api/chat", { message, section });
+      addMsg(reply, "bot");
+    } catch (e) {
+      addMsg("Something went wrong: " + e.message, "bot");
+    }
+  });
+
+  document.querySelectorAll(".quick button").forEach((b) =>
+    b.addEventListener("click", () => {
+      $("msg").value = b.dataset.q;
+      $("chat-form").requestSubmit();
+    })
+  );
+
+  $("ops-btn").addEventListener("click", async () => {
+    const data = await api("/api/ops");
+    $("ops-summary").textContent = data.summary +
+      (data.alerts.length ? ` (alerts: Gate ${data.alerts.join(", Gate ")})` : "");
+  });
+
+  refreshGates();
+  setInterval(refreshGates, 30000);
+</script>
+</body>
+</html>
